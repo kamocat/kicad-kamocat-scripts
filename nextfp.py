@@ -3,14 +3,11 @@ import os
 import wx
 
 def get_sel():
-    sel = pcbnew.GetCurrentSelection()
-    for x in sel:
+    for x in pcbnew.GetCurrentSelection():
         if isinstance(x,pcbnew.FOOTPRINT):
             return x
         elif isinstance(x,pcbnew.PAD):
             return x.GetParent()
-        else:
-            print('not pad or footprint')
 
 def get_lib(libname):
     lib = os.path.join(os.environ['KICAD7_FOOTPRINT_DIR']
@@ -26,6 +23,7 @@ def processTextItems(aSrc,aDest):
     aDest.SetLayer(aSrc.GetLayer())
     aDest.SetVisible(aSrc.IsVisible())
     aDest.SetAttributes(aSrc)
+    #This function doesn't exist in the Python bindings
     #aDest.SetFPRelativePosition(aSrc.GetFPRelativePosition())
     aDest.SetLocked( aSrc.IsLocked() )
 
@@ -33,7 +31,6 @@ def processTextItems(aSrc,aDest):
 def exchange_footprints(aExisting, aNew):
     board = aExisting.GetParent()
     aNew.SetParent(board)
-    # FIXME: Place the footprint
     aNew.SetPosition(aExisting.GetPosition())
     if aNew.GetLayer() != aExisting.GetLayer():
         aNew.Flip(aNew.GetPosition(), True)
@@ -61,24 +58,24 @@ def exchange_footprints(aExisting, aNew):
             pad.SetNetCode( pad_model.GetNetCode() )
         else:
             pad.SetNetCode( pcbnew.NETINFO_LIST.UNCONNECTED )
-    #TODO: Process text items
     processTextItems(aExisting.Reference(),aNew.Reference())
     processTextItems(aExisting.Value(),aNew.Value())
+    #TODO: Process all text items
     #TODO: Copy fields
     #TODO: Copy UUID
     aNew.SetPath(aExisting.GetPath())
-    board.Remove(aExisting)
+    board.RemoveNative(aExisting)
     board.Add(aNew)
     aNew.ClearFlags()
 
 
 def next_fp(direction):
-    # The entry function of the plugin that is executed on user action
     board = pcbnew.GetBoard()
     # TODO: Handle more than one item
     f = get_sel()
     if f is None:
         return
+    f.ClearSelected()
     fid = f.GetFPIDAsString()
     print(f'Selected {f.GetReference()} {fid}')
     libname,_,fpname = fid.partition(':')
@@ -96,7 +93,6 @@ def next_fp(direction):
     newfp = pcbnew.FootprintLoad(lib,footprints[i])
     newfp.SetFPIDAsString(newfid)
     exchange_footprints(f, newfp)
-    f.ClearSelected()
     newfp.SetSelected()
     pcbnew.Refresh()
 
@@ -116,25 +112,23 @@ def findPcbnewWindow():
 
 class NextFp(pcbnew.ActionPlugin):
     def defaults(self):
-        self.name = "next_footprint"
+        self.name = "Replace Footprint Test"
         self.category = "placement"
         self.description = "Cycles through footprints. Intended for changing resistor length while prototyping."
-        self.show_toolbar_button = False # Optional, defaults to False
+        self.show_toolbar_button = True # Optional, defaults to False
         self.icon_file_name = os.path.join(os.path.dirname(__file__), 'simple_plugin.png') # Optional, defaults to ""
 
     def Run(self):
-        pass
+        next_fp(1)
 
 mainFrame = findPcbnewWindow()
 next_fp_button = wx.NewId()
 prev_fp_button = wx.NewId()
-test_button = wx.NewId()
 accel_tbl = wx.AcceleratorTable([(wx.ACCEL_SHIFT,  ord('J'), next_fp_button )
                                  ,(wx.ACCEL_SHIFT,  ord('K'), prev_fp_button )
-                                 ,(wx.ACCEL_SHIFT,  ord('M'), test_button)])
+                                 ])
 mainFrame.Bind(wx.EVT_TOOL, next_fp_callback, id=next_fp_button)
 mainFrame.Bind(wx.EVT_TOOL, prev_fp_callback, id=prev_fp_button)
-mainFrame.Bind(wx.EVT_TOOL, get_sel, id=test_button)
 mainFrame.SetAcceleratorTable(accel_tbl)
 
 NextFp().register() # Instantiate and register to Pcbnew
