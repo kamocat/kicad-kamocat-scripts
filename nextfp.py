@@ -2,7 +2,7 @@ import pcbnew
 import os
 import wx
 
-def get_sel(context = None):
+def get_sel():
     sel = pcbnew.GetCurrentSelection()
     for x in sel:
         print(x)
@@ -12,6 +12,55 @@ def get_sel(context = None):
             return x.GetParent()
         else:
             print('not pad or footprint')
+
+def get_lib(libname):
+    lib = os.path.join(os.environ['KICAD7_FOOTPRINT_DIR']
+                       ,libname+'.pretty')
+    if os.path.isdir(lib):
+        footprints = pcbnew.FootprintEnumerate(lib)
+        return lib,footprints
+    return None,None
+
+def exchange_footprints(aExisting, aNew):
+    aNew.SetParent(aExisting.GetParent())
+    # FIXME: Place the footprint
+    # pcbnew.PlaceFootprint(aNew, False) #But this function doesn't exist
+    aNew.SetPosition(aExisting.GetPosition())
+    if aNew.GetLayer() != aExisting.GetLayer():
+        aNew.Flip(aNew.GetPosition(), True)
+    if aNew.GetOrientation() != aExisting.GetOrientation():
+        aNew.SetOrientation( aExisting.GetOrientation())
+    aNew.SetLocked( aExisting.IsLocked())
+
+    for pad in aNew.Pads():
+        if pad.GetNumber() is None or not pad.IsOnCopperLayer():
+            pad.SetNetCode(pcbnew.NETINFO_LIST.UNCONNECTED)
+            continue
+        last_pad = None
+        while True:
+            pad_model = aExisting.FindPadByNumber( pad.GetNumber(), last_pad )
+            if pad_model is None:
+                break
+            if pad_model.IsOnCopperLayer():
+                break
+            last_pad = pad_model
+
+        if pad_model is not None:
+            pad.SetLocalRatsnestVisible( pad_model.GetLocalRatsnestVisible() )
+            pad.SetPinFunction( pad_model.GetPinFunction())
+            pad.SetPinType( pad_model.GetPinType())
+            pad.SetNetCode( pad_model.GetNetCode() )
+        else:
+            pad.SetNetCode( pcbnew.NETINFO_LIST.UNCONNECTED )
+    #TODO: Process text items
+    #TODO: Copy fields
+    #TODO: Copy UUID
+    aNew.SetPath(aExisting.GetPath())
+    #TODO: Remove aExisting from board commit
+    #TODO: Add aNew to board commit
+    aNew.ClearFlags()
+    pcbnew.Refresh()
+
 
 def next_fp(direction):
     # The entry function of the plugin that is executed on user action
@@ -24,12 +73,7 @@ def next_fp(direction):
     print(f'Selected {f.GetReference()} {fid}')
     libname,_,fpname = fid.partition(':')
     # Get the list of footprints from the library
-    lib = os.path.join(os.environ['KICAD7_FOOTPRINT_DIR']
-                       ,libname+'.pretty')
-    footprints = os.listdir(lib)
-    footprints = [x.partition('.kicad_mod')[0] for x in footprints]
-    # TODO: Sort by numbers like the Footprint Library Browser does
-    footprints.sort()
+    lib,footprints = get_lib(libname)
     i = footprints.index(fpname)
     i += direction
     if i < 0:
@@ -39,10 +83,9 @@ def next_fp(direction):
     # Set the footprint to the next
     newfp = f'{libname}:{footprints[i]}'
     print(f'Changing to {newfp}')
-    f.SetFPIDAsString(newfp) 
-    pcbnew.FootprintLoad(libname,footprints[i])
-    # FIXME: Update footprint from library
-    pass
+    newfp = pcbnew.FootprintLoad(lib,footprints[i])
+    exchange_footprints(f, newfp)
+    print(f'Done')
 
 def next_fp_callback(context):
     next_fp(1)
