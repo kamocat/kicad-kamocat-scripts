@@ -1,5 +1,6 @@
 import pcbnew
 import os
+import wx.aui
 import wx
 
 def get_sel():
@@ -68,12 +69,12 @@ def exchange_footprints(aExisting, aNew):
     board.Add(aNew)
     aNew.ClearFlags()
 
-
 def next_fp(direction):
     board = pcbnew.GetBoard()
     # TODO: Handle more than one item
     f = get_sel()
     if f is None:
+        print("Nothing selected")
         return
     f.ClearSelected()
     fid = f.GetFPIDAsString()
@@ -96,11 +97,27 @@ def next_fp(direction):
     newfp.SetSelected()
     pcbnew.Refresh()
 
-def next_fp_callback(context):
-    next_fp(1)
+class NextFp(pcbnew.ActionPlugin):
+    def defaults(self):
+        self.name = "Next Footprint"
+        self.category = "placement"
+        self.description = "Cycles through footprints. Intended for changing resistor length while prototyping."
+        self.show_toolbar_button = True# Optional, defaults to False
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), 'simple_plugin.png') # Optional, defaults to ""
+    def Run(self):
+        next_fp(1)
+class PrevFp(pcbnew.ActionPlugin):
+    def defaults(self):
+        self.name = "Previous Footprint"
+        self.category = "placement"
+        self.description = "Cycles through footprints. Intended for changing resistor length while prototyping."
+        self.show_toolbar_button = True# Optional, defaults to False
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), 'simple_plugin.png') # Optional, defaults to ""
+    def Run(self):
+        next_fp(-1)
 
-def prev_fp_callback(context):
-    next_fp(-1)
+NextFp().register() # Instantiate and register to Pcbnew
+PrevFp().register() # Instantiate and register to Pcbnew
 
 def findPcbnewWindow():
     """Find the window for the PCBNEW application."""
@@ -110,25 +127,42 @@ def findPcbnewWindow():
         raise Exception("Cannot find pcbnew window from title matching!")
     return pcbnew[0]
 
-class NextFp(pcbnew.ActionPlugin):
-    def defaults(self):
-        self.name = "Replace Footprint Test"
-        self.category = "placement"
-        self.description = "Cycles through footprints. Intended for changing resistor length while prototyping."
-        self.show_toolbar_button = True # Optional, defaults to False
-        self.icon_file_name = os.path.join(os.path.dirname(__file__), 'simple_plugin.png') # Optional, defaults to ""
+def FindToolBar(barid = pcbnew.ID_H_TOOLBAR):
+    bar = [a for a in findPcbnewWindow().GetChildren() if a.GetId() == barid]
+    if len(bar) != 1:
+        raise Exception("Cannot find toolbar panel from ID matching")
+    return bar[0]
 
-    def Run(self):
-        next_fp(1)
+def FindToolId(tool):
+    bar = FindToolBar()
+    tools = [bar.FindToolByIndex(i) for i in range(bar.ToolCount)]
+    if isinstance(tool,str):
+        name = tool
+    else:
+        name = tool.name
+    tid = [t.GetId() for t in tools if t.ShortHelp == name]
+    if len(tid) != 1:
+        raise Exception("Cannot find desired tool")
+    return tid[0]
 
 mainFrame = findPcbnewWindow()
 next_fp_button = wx.NewId()
 prev_fp_button = wx.NewId()
+nfb  = FindToolId(NextFp())
+pfb = FindToolId(PrevFp())
+def btn_press(id):
+    mainFrame.QueueEvent(wx.CommandEvent(wx.wxEVT_TOOL, id=id))
+def next_fp_callback(context):
+    print(context)
+    btn_press(nfb)
+def prev_fp_callback(context):
+    print(context)
+    btn_press(pfb)
+
 accel_tbl = wx.AcceleratorTable([(wx.ACCEL_SHIFT,  ord('J'), next_fp_button )
                                  ,(wx.ACCEL_SHIFT,  ord('K'), prev_fp_button )
                                  ])
 mainFrame.Bind(wx.EVT_TOOL, next_fp_callback, id=next_fp_button)
 mainFrame.Bind(wx.EVT_TOOL, prev_fp_callback, id=prev_fp_button)
 mainFrame.SetAcceleratorTable(accel_tbl)
-
-NextFp().register() # Instantiate and register to Pcbnew
+print("Starting plugin NextFP")
