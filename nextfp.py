@@ -148,16 +148,14 @@ def FindToolId(tool):
 mainFrame = findPcbnewWindow()
 next_fp_button = wx.NewId()
 prev_fp_button = wx.NewId()
-nfb  = FindToolId(NextFp())
-pfb = FindToolId(PrevFp())
 def btn_press(id):
     mainFrame.QueueEvent(wx.CommandEvent(wx.wxEVT_TOOL, id=id))
 def next_fp_callback(context):
-    print(context)
-    btn_press(nfb)
+    print("hotkey1")
+    btn_press(FindToolId(NextFp()))
 def prev_fp_callback(context):
-    print(context)
-    btn_press(pfb)
+    print("hotkey2")
+    btn_press(FindToolId(PrevFp()))
 
 accel_tbl = wx.AcceleratorTable([(wx.ACCEL_SHIFT,  ord('J'), next_fp_button )
                                  ,(wx.ACCEL_SHIFT,  ord('K'), prev_fp_button )
