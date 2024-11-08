@@ -11,7 +11,7 @@ def get_sel():
             return x.GetParent()
 
 def get_lib(libname):
-    lib = os.path.join(os.environ['KICAD7_FOOTPRINT_DIR']
+    lib = os.path.join(os.environ['KICAD8_FOOTPRINT_DIR']
                        ,libname+'.pretty')
     if os.path.isdir(lib):
         footprints = pcbnew.FootprintEnumerate(lib)
